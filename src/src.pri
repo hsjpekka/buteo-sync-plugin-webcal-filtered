@@ -8,10 +8,12 @@ PKGCONFIG += buteosyncfw5 KF5CalendarCore libmkcal-qt5
 INCLUDEPATH += $$PWD
 
 SOURCES += \
-        $$PWD/webcalclient.cpp
+        $$PWD/webcalclient.cpp \
+        $$PWD/icsfilter.cpp
 
 HEADERS += \
-        $$PWD/webcalclient.h
+        $$PWD/webcalclient.h \
+        $$PWD/icsfilter.h
 
 OTHER_FILES += \
         $$PWD/xmls/webcal.xml \
