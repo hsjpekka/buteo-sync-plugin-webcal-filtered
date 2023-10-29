@@ -30,6 +30,8 @@
 
 #include <KCalendarCore/ICalFormat>
 
+#include "icsfilter.h"
+
 Q_LOGGING_CATEGORY(lcWebCal, "buteo.plugin.webcal", QtWarningMsg)
 
 Buteo::ClientPlugin* WebCalClientLoader::createClientPlugin(
@@ -200,7 +202,7 @@ void WebCalClient::dataReceived()
     emit syncProgressDetail(iProfile.name(), Sync::SYNC_PROGRESS_RECEIVING_ITEMS);
 }
 
-void WebCalClient::processData(const QByteArray &icsData, const QByteArray &etag)
+void WebCalClient::processData(const QByteArray &icsDataOrig, const QByteArray &etag)
 {
     mKCal::Notebook::Ptr notebook = mStorage->notebook(mNotebookUid);
     if (!notebook) {
@@ -233,6 +235,9 @@ void WebCalClient::processData(const QByteArray &icsData, const QByteArray &etag
         mCalendar->addNotebook(mNotebookUid, true);
         mCalendar->setDefaultNotebook(mNotebookUid);
         KCalendarCore::ICalFormat iCalFormat;
+        icsFilter icsFilter;
+        QByteArray icsData;
+        icsData = icsFilter.filterIcs(mClient->key("label"), icsDataOrig);
         qCDebug(lcWebCal) << icsData;
         if (!icsData.isEmpty() && !iCalFormat.fromRawString(mCalendar, icsData)) {
             failed(Buteo::SyncResults::DATABASE_FAILURE,

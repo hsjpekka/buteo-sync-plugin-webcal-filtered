@@ -1,6 +1,6 @@
 Name:       buteo-sync-plugin-webcal
 Summary:    Syncs online calendar resource in ICS format
-Version:    0.1.9
+Version:    0.2.1
 Release:    1
 License:    LGPLv2+
 URL:        https://git.sailfishos.org/mer-core/buteo-sync-plugin-webcal
@@ -19,7 +19,7 @@ A Buteo plugin which syncs a ICS resource online
 
 %files
 %defattr(-,root,root,-)
-%license LICENSE
+#%license LICENSE
 %{_libdir}/buteo-plugins-qt5/oopp/libwebcal-client.so
 %config %{_sysconfdir}/buteo/profiles/sync/webcal-sync.xml
 %config %{_sysconfdir}/buteo/profiles/client/webcal.xml

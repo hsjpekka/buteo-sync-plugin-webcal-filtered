@@ -1,3 +1,6 @@
 Online calendar subscription plugin for buteo.
 
 Download and sync an online resource in ICS format.
+
+Filters iCalendar files before adding the events in the calendar.
+Reads the filter description file iCalendarFilters.json in ~/.config/webcal-client/. 

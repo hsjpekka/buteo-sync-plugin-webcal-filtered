@@ -1,3 +1,3 @@
 TEMPLATE = subdirs
-SUBDIRS = src tests
+SUBDIRS = src
 OTHER_FILES += rpm/buteo-sync-plugin-webcal.spec

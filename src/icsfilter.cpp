@@ -10,29 +10,25 @@
 #include <QTimeZone>
 
 /* example filter definition file
- * if no filter is defined, the ics-file is not modified
+ * if no filter is defined, the input iCalendar-file is not modified
  * filter definitions are a JSON-file:
  * { "calendars": [
- *   { "label": "haka", // filter the ics-file, if mkcal->label = label
- *     "idProperty": "X-WR-CALNAME", // which property to use if mkcal->label or label is not defined, defaults to X-WR-CALNAME
- *     "idValue": "www.nimenhuuto.com/haka", // value of "property"
+ *   { "label": "Haagan Karhut - https://haagankarhut.nimenhuuto.com/", // filter the ics-file, if mkcal->label = label
+ *     "url": "https://haagankarhut.nimenhuuto.com/calendar/ical",
  * 	   "reminder": "120", // how many minutes before the start time - if not defined, a reminder is not set; overwrites the values in the ics-file
  *     "dayreminder": "18:00", // for full day events - if not defined, a reminder is not set for full day events; overwrites the values in the ics-file
  *     // if no filter is defined, the component is not filtered out
  *     "filters": [ // only one item per component type - uses only one if multiple found
  *     	{ "component": "vevent",
  *     	  "action": "accept", // accept, reject: take in or drop out components that match this filter, defaults to reject
- *     	  "propMatches": 0.0, // 0 - 100, how many percent of the listed values need to match - defaults to zero (one match is always enough)
+ *     	  "propMatches": 0.0, // 0 - 100, how many percent of the listed values need to match - defaults to zero
  *        "properties": [ // only one item per property - uses only one if multiple found
  *        { "property": "class",
  *          "type": "string", // string, number, date, day, time, defaults to string
  *          "valueMatches": 0.0, // 0 - 100, how many percent of the listed values need to match - defaults to zero (one match is always enough)
  *          "values": [
- *          { "criteria": "s", // =, != (or <>), <, >, <=, >=, s, !s (substring)
+ *          { "criteria": "s", // =, !=, <>, <, >, <=, >=, s, !s (substring)
  *            "value": "ottelu"
- *          },
- *          { "criteria": "s",
- *            "value": "muu"
  *          }]
  *        },
  *        { "property": "dtstart",
@@ -69,11 +65,11 @@
 
 icsFilter::icsFilter(QObject *parent) : QObject(parent)
 {
-    filtersPath = QDir().homePath() + ".config/icsFilter/"; //
-    filtersFileName = "icsCalendarFilters.json";
+    filtersPath = QDir().homePath() + "/.config/webcal-client/";
+    filtersFileName = "iCalendarFilters.json";
 }
 
-int icsFilter::addAlarm(int lineNr, int nrLines, int reminderMin, QTime reminderTime)
+int icsFilter::addAlarm(int lineNr, int nrLines, int reminderMins, QTime reminderTime)
 {
     int i, result = 0;
     QString component, prName, prValue;
@@ -90,20 +86,15 @@ int icsFilter::addAlarm(int lineNr, int nrLines, int reminderMin, QTime reminder
         } else if (prName.toLower() == dtstart) {
             dateTime = propertyTime(prName, prValue, paNames, paValues, date, time);
             i = nrLines;
-        }// else if (prName.toLower() == "begin" &&
-        //           prValue.toLower() == valarm) {
-        //    alarmExists = true;
-        //}
+        }
         i++;
     }
     // alarms can only be included into velement and vtodo
     if (isAlarmAllowed(component)) {
         lineNr +=  nrLines - 1;
         if (dateTime.isValid()) {
-            result = addAlarmRelative(reminderMin, lineNr);
-            qDebug() << "added relative alarm" << reminderMin << "min";
+            result = addAlarmRelative(reminderMins, lineNr);
         } else if (reminderTime.isValid()) {
-            qDebug() << "added absolute alarm" << reminderTime.toString("hh:mm");
             result = addAlarmAbsolute(reminderTime, date, lineNr);
         }
     }
@@ -121,7 +112,6 @@ int icsFilter::addAlarmAbsolute(QTime time, QDate date, int lineNr) {
     trigger.setTimeSpec(Qt::LocalTime);
 
     alarmStr.append(trigger.toString("yyyy") + trigger.toString("MM") + trigger.toString("dd") + "T" + trigger.toString("HH") + trigger.toString("mm") + trigger.toString("ss"));
-    qDebug() << alarmStr;
 
     origLines.insert(lineNr, "BEGIN:VALARM");
     modLines.insert(lineNr, "BEGIN:VALARM");
@@ -360,7 +350,7 @@ int icsFilter::filterCalendar(int lineNr)
     QVector<QStringList> propParams, propParVals;
     QJsonValue jval;
     QTime reminderTime;
-    int i, line0, newRows, rows, reminderMin;
+    int i, line0, newRows, rows, reminderMins;
     bool addReminder = false, isFilterSet, isOk, notEndOfCal = true;
 
     beginCal.setCaseSensitivity(Qt::CaseInsensitive);
@@ -406,21 +396,22 @@ int icsFilter::filterCalendar(int lineNr)
     isFilterSet = !cFilter.isEmpty();
 
     // alarms
+    reminderMins = 0;
     if (isFilterSet) {
         jval = cFilter.value(keyReminder);
         if (!jval.isUndefined()) {
             if (jval.isString()) {
-                reminderMin = jval.toString().toInt(&isOk);
+                reminderMins = jval.toString().toInt(&isOk);
                 if (!isOk) {
-                    qWarning() << "Converting reminder duration failed:" << jval.toString() << ". Using" << reminderMin << "minutes.";
+                    qWarning() << "Converting reminder duration failed:" << jval.toString() << ". Using" << reminderMins << "minutes.";
                 } else {
                     addReminder = true;
-                    qDebug() << "Reminder for normal events" << reminderMin << "min before the event.";
+                    qDebug() << "Reminder for normal events" << reminderMins << "min before the event.";
                 }
             } else if (jval.isDouble()) {
-                reminderMin = jval.toDouble();
+                reminderMins = jval.toDouble();
                 addReminder = true;
-                qDebug() << "Reminder for normal events" << reminderMin << "min before the event.";
+                qDebug() << "Reminder for normal events" << reminderMins << "min before the event.";
             } else {
                 qWarning() << "Converting reminder duration failed: the reminder is not a string nor a number.";
             }
@@ -452,7 +443,7 @@ int icsFilter::filterCalendar(int lineNr)
         if (isFilterSet) {
             rows = filterComponent(component, lineNr);
             if (rows < 0) { // filter out if rows < 0
-                qDebug() << "Filtering out rows" << lineNr+1 << "-" << lineNr - rows << ".";
+                //qDebug() << "Filtering out rows" << lineNr+1 << "-" << lineNr - rows << ".";
                 beginCmp.setPattern("^begin:" + component);
                 endCmp.setPattern("^end:" + component);
                 if (beginCmp.indexIn(modLines[lineNr]) < 0) {
@@ -470,7 +461,7 @@ int icsFilter::filterCalendar(int lineNr)
                 lineNr = i - 1;
             } else {
                 if (addReminder || reminderTime.isValid()) {
-                    newRows = addAlarm(lineNr, rows, reminderMin, reminderTime);
+                    newRows = addAlarm(lineNr, rows, reminderMins, reminderTime);
                     lineNr += newRows;
                 }
                 lineNr += rows - 1; // "end:vevent"
@@ -502,9 +493,6 @@ int icsFilter::filterComponent(QString component, int lineNr)
 
     // is a filter defined for the component
     isFilter = componentFilter(component, cmpFilter, isReject, percentMatches);
-    if (!isFilter) {
-        qDebug() << component  << ":" << "no filters.";
-    }
 
     iProp = 0;
     isMatch = 0;
@@ -515,10 +503,10 @@ int icsFilter::filterComponent(QString component, int lineNr)
     while (loop && lineNr < modLines.length()) {
         readProperty(modLines[lineNr], prName, paNames, paValues, prValue);
         if (prName.toLower() == "begin") { // skip subcomponents
-            qDebug() << "@" << lineNr+1 << "skip" << modLines[lineNr];
+            //qDebug() << "@" << lineNr+1 << "skip" << modLines[lineNr];
             lineNr = findComponentEnd(lineNr, prValue) + 1;
         } else if (prName.toLower() == "end") { // && prValue.toLower() == component.toLower()) {
-            qDebug() << "@" << lineNr+1 << modLines[lineNr];
+            //qDebug() << "@" << lineNr+1 << modLines[lineNr];
             loop = false;
         } else if (!prName.isEmpty()) {
             iProp++;
@@ -533,9 +521,6 @@ int icsFilter::filterComponent(QString component, int lineNr)
                 nrChecks++;
                 if ((percentMatches == 0 && isMatch > 0) || (percentMatches == 1 && isMatch < 0)) {
                     loop = false;
-                }
-                if (isMatch > 0) {
-                    qDebug() << prName << prValue << matchSum;
                 }
             }
         }
@@ -580,8 +565,11 @@ QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString f
     QString icsFile(origIcsData);
     int iLine, emptyEnds;
 
+    qDebug() << "Filtering calendar" << label;
+
     if (label.isEmpty()) {
-        return icsFile.toLocal8Bit();
+        qWarning() << "Calendar label unspecified.";
+        return origIcsData;
     } else if (!readFilters(filters)) {
         qWarning() << "Reading filters unsuccessful. Ics-file not filtered." << filters.toUtf8();
         return origIcsData;
@@ -622,7 +610,7 @@ QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString f
     iLine = 0;
     while (iLine < modLines.length()) {
         if (modLines[iLine] != "") {
-            resultIcs += origLines[iLine].toLocal8Bit() + "\r\n";
+            resultIcs += origLines[iLine].toUtf8() + "\r\n";
         }
         iLine++;
     }
@@ -695,17 +683,15 @@ int icsFilter::findComponent(int lineNr,
     expression.setCaseSensitivity(Qt::CaseInsensitive);
     expression.setMinimal(false);
     if (componentEnd) {
-        //expression.setPattern("^end(\\s*):(\\s*)" + component);
         expression.setPattern("^end\\s*:\\s*" + component);
     } else {
-        //expression.setPattern("^begin(\\s*):(\\s*)" + component);
         expression.setPattern("^begin\\s*:\\s*" + component);
     }
 
     while (search && lineNr < modLines.length()) {
         if (expression.indexIn(modLines[lineNr]) >= 0) {
             search = false;
-            qDebug() << "@" << lineNr+1 << modLines[lineNr];
+            //qDebug() << "@" << lineNr+1 << modLines[lineNr];
         } else {
             lineNr++;
         }
@@ -744,19 +730,16 @@ int icsFilter::isMatchingDate(QJsonValue jVal, filteringCriteria crit,
 
     dotDate.setCaseSensitivity(Qt::CaseInsensitive);
     slashDate.setCaseSensitivity(Qt::CaseInsensitive);
+    dotDate.setPattern("^(\\d\\d?)\\.(\\d\\d?)[\\.]$");
+    slashDate.setPattern("^(\\d?\\d)/(\\d?\\d)[/]$");
+
     year = QDate::currentDate().year();
-
-    dotDate.setPattern("^(d)\\.(d)\\.$");
-    slashDate.setPattern("^(d)/(d)[/]$");
-
     if (jVal.isString()) {
         if (dotDate.exactMatch(jVal.toString())) {
             dateFilter.setDate(year, dotDate.cap(2).toInt(), dotDate.cap(1).toInt());
         } else if (slashDate.exactMatch(jVal.toString())) {
             dateFilter.setDate(year, slashDate.cap(1).toInt(), slashDate.cap(2).toInt());
         }
-        // viime, tämä, vai seuraava vuosi - < vai >
-        //dateFilter = QDate::fromString(jVal.toString(), Qt::ISODate);
     }
     if (!dateFilter.isValid()) {
         qWarning() << "Filter value is not a date:" << jVal.toString();
@@ -826,6 +809,7 @@ int icsFilter::isMatchingNumber(QJsonValue jVal, filteringCriteria crit,
     int result;
 
     isOk = false;
+    dblFilter = 0;
     if (jVal.isString()) {
         dblFilter = jVal.toString().toDouble(&isOk);
     } else if (jVal.isDouble()) {
@@ -878,8 +862,6 @@ int icsFilter::isMatchingString(QJsonValue jVal, filteringCriteria crit,
         result = matchFail;
     }
 
-    //qDebug() << "merkkijonon" << filterValue << "vertailu jonoon" << value << "onko" << criteriaToString(crit) << "?" << result;
-
     return result;
 }
 
@@ -897,11 +879,6 @@ int icsFilter::isMatchingTime(QJsonValue jVal, filteringCriteria crit, QString p
     if (jVal.isString()) {
         str = jVal.toString();
         timeFilter = QTime::fromString(str, "hh:mm");
-        //if (str.right(1) == "Z") {
-        //    isUTC = true;
-        //} else {
-        //    isUTC = false;
-        //}
     }
     if (!timeFilter.isValid()) {
         qWarning() << "Filter value is not a timevalue:" << jVal.toString();
@@ -1040,7 +1017,7 @@ int icsFilter::isPropertyMatching(QJsonObject cmpFilter, QString property,
         if (matchSum >= percentMatches*nrChecks) {
             result = resultMatch;
         }
-    } else if (!filterFound){
+    } else if (!filterFound) {
         result = resultNotFound;
     }
 
@@ -1106,6 +1083,26 @@ int icsFilter::listItemIndex(QJsonObject jObject, QString listName, QString key,
     }
 
     return result;
+}
+
+int icsFilter::overWriteFiltersFile(QString fileContents)
+{
+    QFile fFile;
+    QTextStream fData;
+    QDir fDir;
+
+    if (!fDir.mkpath(filtersPath)) {
+        qWarning() << "Can't create path" << filtersPath;
+    }
+
+    fFile.setFileName(filtersPath + filtersFileName);
+    if (fFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        fData.setDevice(&fFile);
+        fData << fileContents;
+        fFile.close();
+    }
+
+    return fFile.error();
 }
 
 // time in icalendar-file
@@ -1191,6 +1188,7 @@ bool icsFilter::readFilters(QString filtersFileContents)
 {
     // reads filters from fileName if fileContents.isEmpty()
     QJsonDocument json;
+    QJsonParseError jsonError;
     const int filtersFileMinLength = 16; // {"calendars":[]}
 
     if (filtersFileContents.length() < filtersFileMinLength) {
@@ -1200,8 +1198,14 @@ bool icsFilter::readFilters(QString filtersFileContents)
         return false;
     }
 
-    json = QJsonDocument::fromJson(filtersFileContents.toUtf8());
+    json = QJsonDocument::fromJson(filtersFileContents.toUtf8(), &jsonError);
     filters = json.object();
+    if (json.isObject()) {
+        qDebug() << "Reading filters successfull.";
+    } else {
+        qDebug() << "Reading filters unsuccessfull:\n";
+        qDebug() << jsonError.errorString() << "\n at " << jsonError.offset;
+    }
 
     return json.isObject();
 }
@@ -1216,12 +1220,14 @@ QString icsFilter::readFiltersFile(QString fileName, QString path)
         setFiltersFile(fileName, path);
     }
 
-    fFile.setFileName(filtersFileName);
+    fFile.setFileName(filtersPath + filtersFileName);
     if (fFile.exists()){
         fFile.open(QIODevice::ReadOnly | QIODevice::Text);
         fData.setDevice(&fFile);
         result = fData.readAll();
         fFile.close();
+    } else {
+        qWarning() << "Filters file not found:" << filtersPath << filtersFileName;
     }
 
     return result;
@@ -1250,7 +1256,6 @@ int icsFilter::readProperty(QString line, QString &name,
         }
     }
 
-    //qDebug() << lineNr << name << value;
     return 0;
 }
 
@@ -1266,7 +1271,6 @@ int icsFilter::readPropertyName(QString line, QString &name)
 
     name = propName.cap();
 
-    //qDebug() << "luettu nimi:" << name;
 
     return name.length();
 }
@@ -1340,7 +1344,7 @@ QString icsFilter::readPropertyValue(QString line, int position)
 // or 0, if lineNr is not "begin:"
 int icsFilter::skipComponent(int &lineNr)
 {
-    QRegExp beginCmp, endCmp, beginSub, endSub;
+    QRegExp beginCmp, endCmp;//, beginSub, endSub;
     QString component, line;
     int iN, row0, result;
 
@@ -1371,15 +1375,23 @@ int icsFilter::skipComponent(int &lineNr)
     return result;
 }
 
-void icsFilter::setFiltersFile(QString fileName, QString path)
+QString icsFilter::setFiltersFile(QString fileName, QString path)
 {
+    QString result;
     if (!path.isEmpty()) {
         filtersPath = path;
+        if (filtersPath.at(filtersPath.length() - 1) != '/') {
+            filtersPath += "/";
+        }
     }
     if (!fileName.isEmpty()) {
         filtersFileName = fileName;
     }
-    return;
+    result.append(filtersPath);
+    result.append("/");
+    result.append(filtersFileName);
+
+    return result;
 }
 
 // unfolds the lines, replaces the folds by space " "
@@ -1425,19 +1437,4 @@ int icsFilter::unfoldLine(int &lineNr)
     lineNr = i;
 
     return result;
-}
-
-int icsFilter::overWriteFiltersFile(QString fileContents)
-{
-    QFile fFile;
-    QTextStream fData;
-
-    fFile.setFileName(filtersFileName);
-    if (fFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        fData.setDevice(&fFile);
-        fData << fileContents;
-        fFile.close();
-    }
-
-    return fFile.error();
 }
