@@ -75,9 +75,10 @@ icsFilter::icsFilter(QObject *parent) : QObject(parent)
     }
 }
 
-int icsFilter::addAlarm(int lineNr, int nrLines, int reminderMins,
+int icsFilter::addAlarm(int line0, int lineN, int reminderMins,
                         QTime reminderTime, bool onPreviousDay)
 {
+    // returns the number of added rows
     int i, result = 0;
     QString component, prName, prValue;
     QStringList paNames, paValues;
@@ -85,25 +86,24 @@ int icsFilter::addAlarm(int lineNr, int nrLines, int reminderMins,
     QTime time;
     QDateTime dateTime;
 
-    i = 0;
-    while (i < nrLines) {
-        readProperty(modLines[lineNr + i], prName, paNames, paValues, prValue);
+    i = line0;
+    while (i < lineN) {
+        readProperty(modLines[i], prName, paNames, paValues, prValue);
         if (i == 0) { // "begin:vevent"
             component = prValue;
         } else if (prName.toLower() == dtstart) {
             dateTime = propertyTime(prName, prValue, paNames, paValues, date, time);
-            i = nrLines;
+            i = lineN;
         }
         i++;
     }
     // alarms can only be included into velement and vtodo
     if (isAlarmAllowed(component)) {
-        lineNr +=  nrLines - 1;
         if (dateTime.isValid()) {
-            result += addAlarmRelative(reminderMins, lineNr);
+            result += addAlarmRelative(reminderMins, lineN);
         }
         if (!dateTime.isValid() || bothReminders) {
-            result += addAlarmAbsolute(reminderTime, onPreviousDay, date, lineNr);
+            result += addAlarmAbsolute(reminderTime, onPreviousDay, date, lineN);
         }
     }
 
@@ -157,7 +157,7 @@ int icsFilter::addAlarmRelative(int min, int lineNr)
     } else {
         advance.append(QString().setNum(-min));
     }
-    advance.append("M");
+    advance.append("M"); //minutes
     origLines.insert(lineNr, "BEGIN:VALARM");
     modLines.insert(lineNr, "BEGIN:VALARM");
     lineNr++;
@@ -370,7 +370,7 @@ int icsFilter::filterCalendar(int lineNr)
     QVector<QStringList> propParams, propParVals;
     QJsonValue jval;
     QTime reminderTime;
-    int i, line0, newRows, rows, reminderMins;
+    int i, line0, lineNr2, newRows, rows, reminderMins;
     bool addReminder = false, isFilterSet, isOk, notEndOfCal = true, remindPreviousDay = true;
 
     beginCal.setCaseSensitivity(Qt::CaseInsensitive);
@@ -380,18 +380,20 @@ int icsFilter::filterCalendar(int lineNr)
     beginCmp.setCaseSensitivity(Qt::CaseInsensitive);
     endCmp.setCaseSensitivity(Qt::CaseInsensitive);
 
+    qDebug() << lineNr;
     // find the beginning of the calendar
     while (lineNr < modLines.length() &&
            beginCal.indexIn(modLines[lineNr]) < 0) {
         lineNr++;
     }
     lineNr++;
-    line0 = lineNr; // "begin:vcalendar" on line lineNr-1;
-
     if (lineNr >= modLines.length()) {
         qWarning() << beginCal.pattern() << "not found";
         return lineNr;
     }
+
+    line0 = lineNr; // "begin:vcalendar" on line lineNr-1;
+    qDebug() << line0 << ":" << modLines[line0];
 
     // read the calendar properties
     // calendarName = mClient->key("label") || property("X-WR-CALNAME")
@@ -472,37 +474,37 @@ int icsFilter::filterCalendar(int lineNr)
         component.clear();
         lineNr = findComponent(lineNr, component);
         if (isFilterSet) {
-            rows = filterComponent(component, lineNr);
-            if (rows < 0) { // filter out if rows < 0
+            lineNr2 = findComponentEnd(lineNr, component);
+            if (filterComponent(component, lineNr, lineNr2) < 0) { // filter rows out if < 0
+                rows = lineNr2 - lineNr;
                 beginCmp.setPattern("^begin:" + component);
                 endCmp.setPattern("^end:" + component);
                 if (beginCmp.indexIn(modLines[lineNr]) < 0) {
                     qWarning() << "!!! The first row is NOT " << beginCmp.pattern();
                 }
-                if (endCmp.indexIn(modLines[lineNr - rows]) < 0) {
+                if (endCmp.indexIn(modLines[lineNr2]) < 0) {
                     qWarning() << "!!! The last row is NOT " << endCmp.pattern();
                 }
                 i = lineNr;
-                while ((i <= lineNr - rows || modLines[i] == " ")
+                while ((i <= lineNr2 || modLines[i] == " ")
                        && i < modLines.length()) { // modLines[i] == " " ???
                     modLines[i] = "";
                     i++;
                 }
-                qDebug() << origLines[lineNr] << origLines[i-1] << rows << i;
-                lineNr = i - 1;
             } else {
                 if (addReminder || reminderTime.isValid()) {
-                    newRows = addAlarm(lineNr, rows, reminderMins, reminderTime, remindPreviousDay);
-                    lineNr += newRows;
+                    newRows = addAlarm(lineNr, lineNr2, reminderMins, reminderTime, remindPreviousDay);
+                    lineNr2 += newRows;
                 }
-                qDebug() << modLines[lineNr] << modLines[lineNr + rows -1];
-                lineNr += rows - 1; // "end:vevent"
+                rows = -(lineNr2 - lineNr);
             }
+            qDebug() << modLines[lineNr] << modLines[lineNr2] << rows;
+            lineNr = lineNr2; // "end:vevent"
         }
         lineNr ++;
     }
 
-    /*// perustesti
+    /// perustesti
     int riviNr = line0;
     QString rivi;
     while (riviNr <= lineNr) {
@@ -523,13 +525,12 @@ int icsFilter::filterCalendar(int lineNr)
     return lineNr;
 }
 
-// returns the number of lines checked
 // if result < 0, the lines should be filtered out
-// if result > 0, the lines should not be filtered out
-int icsFilter::filterComponent(QString component, int lineNr)
+int icsFilter::filterComponent(QString component, int line0, int lineN)
 {
+    // modLines[line0] == "begin:vcomponent", modLines[lineN] == "end:vcomponent"
     int iProp, result, isMatch, matchSum, nrChecks;
-    bool loop = true, isFilter = false;
+    bool isFilter = false;
     bool isReject;
     float percentRequired;
     QStringList properties, values, paNames, paValues;
@@ -537,8 +538,8 @@ int icsFilter::filterComponent(QString component, int lineNr)
     QString prName, prValue;
     QJsonObject cmpFilter;
 
-    if (lineNr >= modLines.length()) {
-        qWarning() << "lineNr (" << lineNr << ") too large ( >" << modLines.length() << ")";
+    if (line0 >= modLines.length() || lineN >= modLines.length()) {
+        qWarning() << "line number (" << line0 << "," << lineN << ") too large ( >" << modLines.length() << ")";
         return 0;
     }
 
@@ -549,14 +550,12 @@ int icsFilter::filterComponent(QString component, int lineNr)
     isMatch = 0;
     matchSum = 0;
     nrChecks = 0;
-    result = lineNr; // modLines[lineNr] == "begin:vcomponent"
-    lineNr++;
-    while (loop && lineNr < modLines.length()) {
-        readProperty(modLines[lineNr], prName, paNames, paValues, prValue);
+    result = 1;
+    line0++;
+    while (line0 < lineN) {
+        readProperty(modLines[line0], prName, paNames, paValues, prValue);
         if (prName.toLower() == "begin") { // skip subcomponents
-            lineNr = findComponentEnd(lineNr, prValue) + 1;
-        } else if (prName.toLower() == "end") { // && prValue.toLower() == component.toLower()) {
-            loop = false;
+            line0 = findComponentEnd(line0, prValue) + 1;
         } else if (!prName.isEmpty()) {
             // check if the property matches the component filter
             iProp++;
@@ -567,24 +566,19 @@ int icsFilter::filterComponent(QString component, int lineNr)
 
             if (isFilter) {
                 isMatch = isPropertyMatching(cmpFilter, prName, prValue, paNames, paValues);
-                matchSum += isMatch;
+                if (isMatch > 0) { // if isMatch == 0, prName is not used for filtering
+                    matchSum += isMatch;
+                }
                 nrChecks++;
                 if ((percentRequired == 0.0 && isMatch > 0) || (percentRequired == 1.0 && isMatch < 0)) {
-                    loop = false;
+                    line0 = lineN;
                 }
             }
         }
-        lineNr ++;
-    }
-    // find the last line of the component
-    if (prName.toLower() != "end") {
-        lineNr = findComponentEnd(lineNr, component);
+        line0 ++;
     }
 
-    result = lineNr - result; // number of lines in the component
-
-    // if isMatch = 0, the last property was not included in the filter
-    // a match is found if isMatch > 0 or isMatch == 0 && matchSum > 0
+    // if a single match is enough, percentRequired = 0
     if (matchSum > 0 && matchSum >= percentRequired*nrChecks) {
         isMatch = 1;
     }
@@ -592,7 +586,7 @@ int icsFilter::filterComponent(QString component, int lineNr)
     // - isReject == true && a match is found
     // - isReject == false && a match is not found
     if ((isReject && isMatch > 0) || (!isReject && isMatch <= 0)) {
-        result = -result;
+        result = -1;
     }
 
     return result;
@@ -603,7 +597,7 @@ QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString f
     // label tells which ics-filter to use.
     // filters should be a json-string. If it is empty, tries to read
     // ======>  ~/.config/icsFilter/filters.json  <=======
-    // Copies origIcsData to origLines[] and modLines[], where
+    // Copies origIcsData to origLines[] and modLines[], of which
     // modLines[] will be filtered. Lines to be filtered out will
     // be replaced by an empty line "". Unfolding will replace
     // the folded lines by " ".
@@ -646,12 +640,13 @@ QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString f
     }
 
     // filter each calendar in the file
-    qDebug() << "Rows in the ics file" << modLines.length() << ".";
+    qDebug() << "Rows in the ics file" << modLines.length() << "." << emptyEnds;
     iLine = 0;
     while (iLine >= 0 && iLine < modLines.length() - emptyEnds) {
         iLine = filterCalendar(iLine) + 1;
     }
 
+    qDebug() << "Filtered, printing the result file.";
     // print the result, skip the filtered out = empty lines
     resultIcs = "";
     iLine = 0;
@@ -724,6 +719,7 @@ int icsFilter::findComponent(int lineNr,
     bool search = true;
     QRegExp expression;
 
+    qDebug() << "etsi cmp";
     if (component.isEmpty()) {
         component = "(v[a-z]+)";
     }
@@ -735,6 +731,7 @@ int icsFilter::findComponent(int lineNr,
         expression.setPattern("^begin\\s*:\\s*" + component);
     }
 
+    qDebug() << lineNr << expression.pattern() << modLines[lineNr];
     while (search && lineNr < modLines.length()) {
         if (expression.indexIn(modLines[lineNr]) >= 0) {
             search = false;
@@ -747,6 +744,7 @@ int icsFilter::findComponent(int lineNr,
         component = expression.cap(expression.captureCount());
     }
 
+    qDebug() << "poistuu" << lineNr;
     return lineNr;
 }
 

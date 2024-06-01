@@ -36,7 +36,7 @@ private:
     enum propertyType {Date, Day, Number, String, Time};
     const int matchFail = -1, matchSuccess = 1;
 
-    int addAlarm(int lineNr, int nrLines, int reminderMins, QTime reminderTime, bool onPreviousDay);
+    int addAlarm(int lineNr, int lineN, int reminderMins, QTime reminderTime, bool onPreviousDay);
     int addAlarmRelative(int min, int lineNr);
     int addAlarmAbsolute(QTime time, bool onPreviousDay, QDate date, int lineNr);
     bool bothReminders = true;
@@ -47,7 +47,7 @@ private:
     bool componentFilteringType(QString component);
     QString criteriaToString(filteringCriteria crit);
     int filterCalendar(int lineNr); // QStringList &lines,
-    int filterComponent(QString component, int lineNr);
+    int filterComponent(QString component, int line0, int lineN);
     filteringCriteria filterType(QJsonValue jVal, propertyType vType);
     int findComponent(int lineNr, QString &component, bool componentEnd=false);
     int findComponentEnd(int lineNr, QString component);
