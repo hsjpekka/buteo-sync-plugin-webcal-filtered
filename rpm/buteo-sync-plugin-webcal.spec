@@ -1,6 +1,6 @@
 Name:       buteo-sync-plugin-webcal
 Summary:    Syncs online calendar resource in ICS format
-Version:    0.2.1
+Version:    0.2.2
 Release:    1
 License:    LGPLv2+
 URL:        https://git.sailfishos.org/mer-core/buteo-sync-plugin-webcal
@@ -15,7 +15,8 @@ BuildRequires:  pkgconfig(buteosyncfw5) >= 0.10.0
 Requires: buteo-syncfw-qt5-msyncd
 
 %description
-A Buteo plugin which syncs a ICS resource online
+A Buteo plugin which syncs an online iCalendar-resource (ICS-file),
+filters the events, and adds alarms for events.
 
 %files
 %defattr(-,root,root,-)
