@@ -220,9 +220,14 @@ void WebCalClient::processData(const QByteArray &icsDataOrig, const QByteArray &
                    QStringLiteral("Cannot load existing incidences."));
             return;
         }
-        deleted = mCalendar->incidences().count();
+        //deleted = mCalendar->incidences().count();// my patch
+        const KCalendarCore::Incidence::List oldIncidences = mCalendar->incidences();// my patch
+        deleted = oldIncidences.count();// my patch
         qCDebug(lcWebCal) << "Deleting" << deleted << "previous incidences.";
-        mCalendar->deleteAllIncidences();
+        //mCalendar->deleteAllIncidences();// my patch
+        for (const KCalendarCore::Incidence::Ptr &incidence : oldIncidences) {// my patch
+            mCalendar->deleteIncidence(incidence);// my patch
+        }// my patch
         // Deletion happens after insertion in mkcal, so ensure
         // that incidences with a UID in icsData are deleted before.
         if (deleted && !mStorage->save(mKCal::ExtendedStorage::PurgeDeleted)) {
@@ -235,9 +240,9 @@ void WebCalClient::processData(const QByteArray &icsDataOrig, const QByteArray &
         mCalendar->addNotebook(mNotebookUid, true);
         mCalendar->setDefaultNotebook(mNotebookUid);
         KCalendarCore::ICalFormat iCalFormat;
-        icsFilter icsFilter;
-        QByteArray icsData;
-        icsData = icsFilter.filterIcs(mClient->key("label"), icsDataOrig);
+        icsFilter icsFilter; // my-patch
+        QByteArray icsData; // my-patch
+        icsData = icsFilter.filterIcs(mClient->key("label"), icsDataOrig); // my-patch
         qCDebug(lcWebCal) << icsData;
         if (!icsData.isEmpty() && !iCalFormat.fromRawString(mCalendar, icsData)) {
             failed(Buteo::SyncResults::DATABASE_FAILURE,
