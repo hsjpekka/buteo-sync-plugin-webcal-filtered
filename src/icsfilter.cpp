@@ -370,7 +370,7 @@ int icsFilter::filterCalendar(int lineNr)
     QVector<QStringList> propParams, propParVals;
     QJsonValue jval;
     QTime reminderTime;
-    int i, line0, lineNr2, newRows, rows, reminderMins;
+    int i, line0, lineNr2, newRows, reminderMins;
     bool addReminder = false, isFilterSet, isOk, notEndOfCal = true, remindPreviousDay = true;
 
     beginCal.setCaseSensitivity(Qt::CaseInsensitive);
@@ -380,7 +380,6 @@ int icsFilter::filterCalendar(int lineNr)
     beginCmp.setCaseSensitivity(Qt::CaseInsensitive);
     endCmp.setCaseSensitivity(Qt::CaseInsensitive);
 
-    qDebug() << lineNr;
     // find the beginning of the calendar
     while (lineNr < modLines.length() &&
            beginCal.indexIn(modLines[lineNr]) < 0) {
@@ -393,7 +392,6 @@ int icsFilter::filterCalendar(int lineNr)
     }
 
     line0 = lineNr; // "begin:vcalendar" on line lineNr-1;
-    qDebug() << line0 << ":" << modLines[line0];
 
     // read the calendar properties
     // calendarName = mClient->key("label") || property("X-WR-CALNAME")
@@ -438,7 +436,7 @@ int icsFilter::filterCalendar(int lineNr)
                 qWarning() << "Converting reminder duration failed: the reminder is not a string nor a number.";
             }
         } else {
-            qDebug() << "No reminder set for normal events.";
+            qInfo() << "No reminder set for normal events.";
         }
         jval = cFilter.value(keyReminderDay);
         if (!jval.isUndefined()) {
@@ -458,7 +456,7 @@ int icsFilter::filterCalendar(int lineNr)
                 qWarning() << "Converting dayreminder time failed: the reminder is not a valid string.";
             }
         } else {
-            qDebug() << "No reminder set for full day events.";
+            qInfo() << "No reminder set for full day events.";
         }
         jval = cFilter.value(keyBothReminders);
         if (!jval.isUndefined()) {
@@ -473,18 +471,18 @@ int icsFilter::filterCalendar(int lineNr)
     while (lineNr < modLines.length() && endCal.indexIn(modLines[lineNr]) < 0) {
         component.clear();
         lineNr = findComponent(lineNr, component);
+        beginCmp.setPattern("^begin:" + component);
+        if (beginCmp.indexIn(modLines[lineNr]) < 0) {
+            qDebug() << "Row" << lineNr << "is NOT" << beginCmp.pattern();
+        }
         if (isFilterSet) {
             lineNr2 = findComponentEnd(lineNr, component);
+            endCmp.setPattern("^end:" + component);
+            if (endCmp.indexIn(modLines[lineNr2]) < 0) {
+                qDebug() << "Row" << lineNr2 << "is NOT" << endCmp.pattern();
+            }
             if (filterComponent(component, lineNr, lineNr2) < 0) { // filter rows out if < 0
-                rows = lineNr2 - lineNr;
-                beginCmp.setPattern("^begin:" + component);
-                endCmp.setPattern("^end:" + component);
-                if (beginCmp.indexIn(modLines[lineNr]) < 0) {
-                    qWarning() << "!!! The first row is NOT " << beginCmp.pattern();
-                }
-                if (endCmp.indexIn(modLines[lineNr2]) < 0) {
-                    qWarning() << "!!! The last row is NOT " << endCmp.pattern();
-                }
+                //rows = lineNr2 - lineNr;
                 i = lineNr;
                 while ((i <= lineNr2 || modLines[i] == " ")
                        && i < modLines.length()) { // modLines[i] == " " ???
@@ -496,31 +494,12 @@ int icsFilter::filterCalendar(int lineNr)
                     newRows = addAlarm(lineNr, lineNr2, reminderMins, reminderTime, remindPreviousDay);
                     lineNr2 += newRows;
                 }
-                rows = -(lineNr2 - lineNr);
+                //rows = -(lineNr2 - lineNr);
             }
-            qDebug() << modLines[lineNr] << modLines[lineNr2] << rows;
             lineNr = lineNr2; // "end:vevent"
         }
         lineNr ++;
     }
-
-    /// perustesti
-    int riviNr = line0;
-    QString rivi;
-    while (riviNr <= lineNr) {
-        rivi = origLines[riviNr];
-        if (rivi.indexOf("SUMMARY") >= 0) {
-            rivi.append(" -- ");
-            if (isFilterSet) {
-                rivi.append("filters");
-            } else {
-                rivi.append("no filters");
-            }
-            origLines[riviNr] = rivi;
-        }
-        riviNr ++;
-    }
-    // pois*/
 
     return lineNr;
 }
@@ -539,7 +518,8 @@ int icsFilter::filterComponent(QString component, int line0, int lineN)
     QJsonObject cmpFilter;
 
     if (line0 >= modLines.length() || lineN >= modLines.length()) {
-        qWarning() << "line number (" << line0 << "," << lineN << ") too large ( >" << modLines.length() << ")";
+        qDebug() << "line number (" << line0 << "," << lineN << ") too large ( >" << modLines.length() << ")";
+        qInfo() << "component" << component << "line" << line0 << "not checked";
         return 0;
     }
 
@@ -640,7 +620,7 @@ QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString f
     }
 
     // filter each calendar in the file
-    qDebug() << "Rows in the ics file" << modLines.length() << "." << emptyEnds;
+    qDebug() << "Rows in the ics file" << modLines.length() << ".";
     iLine = 0;
     while (iLine >= 0 && iLine < modLines.length() - emptyEnds) {
         iLine = filterCalendar(iLine) + 1;
@@ -719,7 +699,6 @@ int icsFilter::findComponent(int lineNr,
     bool search = true;
     QRegExp expression;
 
-    qDebug() << "etsi cmp";
     if (component.isEmpty()) {
         component = "(v[a-z]+)";
     }
@@ -731,7 +710,6 @@ int icsFilter::findComponent(int lineNr,
         expression.setPattern("^begin\\s*:\\s*" + component);
     }
 
-    qDebug() << lineNr << expression.pattern() << modLines[lineNr];
     while (search && lineNr < modLines.length()) {
         if (expression.indexIn(modLines[lineNr]) >= 0) {
             search = false;
@@ -744,7 +722,6 @@ int icsFilter::findComponent(int lineNr,
         component = expression.cap(expression.captureCount());
     }
 
-    qDebug() << "poistuu" << lineNr;
     return lineNr;
 }
 
@@ -1301,7 +1278,7 @@ int icsFilter::readProperty(QString line, QString &name,
         }
         value = readPropertyValue(line, j);
         if (value.length() < 1) {
-            qWarning() << "No property value found:" << line;
+            qInfo() << "No property value found:" << line;
         }
     }
 
