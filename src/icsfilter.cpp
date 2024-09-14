@@ -86,12 +86,13 @@ int icsFilter::addAlarm(int line0, int lineN, int reminderMins,
     QTime time;
     QDateTime dateTime;
 
+    // read start-time
     i = line0;
     while (i < lineN) {
         readProperty(modLines[i], prName, paNames, paValues, prValue);
-        if (i == 0) { // "begin:vevent"
+        if (i == line0) { // "begin:vevent"
             component = prValue;
-        } else if (prName.toLower() == dtstart) {
+        } else if (prName.toUpper() == dtstart) {
             dateTime = propertyTime(prName, prValue, paNames, paValues, date, time);
             i = lineN;
         }
@@ -105,6 +106,8 @@ int icsFilter::addAlarm(int line0, int lineN, int reminderMins,
         if (!dateTime.isValid() || bothReminders) {
             result += addAlarmAbsolute(reminderTime, onPreviousDay, date, lineN);
         }
+    } else {
+        qDebug() << "no alarms for" << component;
     }
 
     return result;
@@ -221,7 +224,7 @@ bool icsFilter::calendarFilterCheck(QJsonValue filterN,
             }
         }
     } else {
-        qDebug() << "Filter is not a jsonValue";
+        qDebug() << "Filter is not a jsonObject";
     }
 
     if(result) {
@@ -362,31 +365,38 @@ QString icsFilter::criteriaToString(filteringCriteria crit)
 // returns the line number of the next 'end:vcalendar'
 int icsFilter::filterCalendar(int lineNr)
 {
-    // // caledar label - or properties, that are used in selecting
-    // // the filter - has to be before the first calendar component
+    // a file may contain more than a single calendar, therefore notEndOfCal
     QRegExp beginCal, endCal, beginCmp, endCmp;
     QString component, prop, val;
     QStringList properties, values, params, parVals;
     QVector<QStringList> propParams, propParVals;
     QJsonValue jval;
     QTime reminderTime;
-    int i, line0, lineNr2, newRows, reminderMins;
-    bool addReminder = false, isFilterSet, isOk, notEndOfCal = true, remindPreviousDay = true;
+    int i, line0, lineNr2, nComponents, newRows, reminderMins;
+    bool addReminder = false, isFilterSet, isOk, remindPreviousDay = true;
 
-    beginCal.setCaseSensitivity(Qt::CaseInsensitive);
-    beginCal.setPattern(("^begin:vcalendar$"));
-    endCal.setCaseSensitivity(Qt::CaseInsensitive);
-    endCal.setPattern(("^end:vcalendar$"));
-    beginCmp.setCaseSensitivity(Qt::CaseInsensitive);
-    endCmp.setCaseSensitivity(Qt::CaseInsensitive);
+    nComponents = 0;
+    //beginCal.setCaseSensitivity(Qt::CaseInsensitive);
+    //beginCal.setPattern(("^begin:vcalendar$"));
+    //endCal.setCaseSensitivity(Qt::CaseInsensitive);
+    //endCal.setPattern(("^end:vcalendar$"));
+    //beginCmp.setCaseSensitivity(Qt::CaseInsensitive);
+    //endCmp.setCaseSensitivity(Qt::CaseInsensitive);
 
-    // find the beginning of the calendar
-    while (lineNr < modLines.length() &&
-           beginCal.indexIn(modLines[lineNr]) < 0) {
-        lineNr++;
+    // find "begin:calendar"
+    component = vcalendar;
+    lineCalBegin = findComponent(lineNr, component);
+    lineCalEnd = findComponentEnd(lineCalBegin, component);
+    if (lineCalEnd >= modLines.length()) {
+        lineCalEnd = modLines.length() - 1;
     }
-    lineNr++;
-    if (lineNr >= modLines.length()) {
+    //while (lineNr < modLines.length() &&
+    //       beginCal.indexIn(modLines[lineNr]) < 0) {
+    //    lineNr++;
+    //}
+    //lineNr++;
+    lineNr = lineCalBegin + 1;
+    if (lineNr >= lineCalEnd) {
         qWarning() << beginCal.pattern() << "not found";
         return lineNr;
     }
@@ -395,10 +405,10 @@ int icsFilter::filterCalendar(int lineNr)
 
     // read the calendar properties
     // calendarName = mClient->key("label") || property("X-WR-CALNAME")
-    while (lineNr < modLines.length() && notEndOfCal) {
-        if (endCal.indexIn(modLines[lineNr]) >= 0) {
-            notEndOfCal = false;
-        } else {
+    while (lineNr < lineCalEnd) {
+        //if (endCal.indexIn(modLines[lineNr]) >= 0) {
+        //    notEndOfCal = false;
+        //} else {
             // read calendar properties, skip calendar components
             if (skipComponent(lineNr) == 0) {
                 readProperty(modLines[lineNr], prop, params, parVals, val);
@@ -408,7 +418,7 @@ int icsFilter::filterCalendar(int lineNr)
                 propParVals.append(parVals);
             }
             lineNr++;
-        }
+        //}
     }
 
     // read the filter for the calendar
@@ -468,24 +478,36 @@ int icsFilter::filterCalendar(int lineNr)
 
     // filter the events
     lineNr = line0;
-    while (lineNr < modLines.length() && endCal.indexIn(modLines[lineNr]) < 0) {
+    while (lineNr < lineCalEnd) {
         component.clear();
         lineNr = findComponent(lineNr, component);
-        beginCmp.setPattern("^begin:" + component);
+        if (lineNr >= lineCalEnd) {
+            if (nComponents < 1) {
+                qDebug() << "No components found.";
+            }
+            return lineNr;
+        } else {
+            nComponents++;
+        }
+        beginCmp.setPattern("^BEGIN:" + component);
         if (beginCmp.indexIn(modLines[lineNr]) < 0) {
             qDebug() << "Row" << lineNr << "is NOT" << beginCmp.pattern();
         }
         if (isFilterSet) {
             lineNr2 = findComponentEnd(lineNr, component);
-            endCmp.setPattern("^end:" + component);
-            if (endCmp.indexIn(modLines[lineNr2]) < 0) {
+            endCmp.setPattern("^END:" + component);
+            if (lineNr2 >= lineCalEnd) {
+                lineNr2 = lineCalEnd;
+                //notEndOfCal = false;
+                qDebug() << "End of component" << nComponents << "-" <<
+                            component << "-" << "from line" << lineNr
+                         << "not found";
+            } else if (endCmp.indexIn(modLines[lineNr2]) < 0) {
                 qDebug() << "Row" << lineNr2 << "is NOT" << endCmp.pattern();
             }
             if (filterComponent(component, lineNr, lineNr2) < 0) { // filter rows out if < 0
-                //rows = lineNr2 - lineNr;
                 i = lineNr;
-                while ((i <= lineNr2 || modLines[i] == " ")
-                       && i < modLines.length()) { // modLines[i] == " " ???
+                while (i <= lineNr2 || modLines[i] == " ") { // modLines[i] == " " ???
                     modLines[i] = "";
                     i++;
                 }
@@ -494,12 +516,12 @@ int icsFilter::filterCalendar(int lineNr)
                     newRows = addAlarm(lineNr, lineNr2, reminderMins, reminderTime, remindPreviousDay);
                     lineNr2 += newRows;
                 }
-                //rows = -(lineNr2 - lineNr);
             }
             lineNr = lineNr2; // "end:vevent"
         }
         lineNr ++;
     }
+    qDebug() << "Found" << nComponents << "components.";
 
     return lineNr;
 }
@@ -517,9 +539,9 @@ int icsFilter::filterComponent(QString component, int line0, int lineN)
     QString prName, prValue;
     QJsonObject cmpFilter;
 
-    if (line0 >= modLines.length() || lineN >= modLines.length()) {
+    if (line0 < lineCalBegin || line0 >= lineCalEnd || lineN <= line0 || lineN >= lineCalEnd) {
         qDebug() << "line number (" << line0 << "," << lineN << ") too large ( >" << modLines.length() << ")";
-        qInfo() << "component" << component << "line" << line0 << "not checked";
+        qInfo() << "component" << component << ", line" << line0 << "not checked";
         return 0;
     }
 
@@ -534,7 +556,7 @@ int icsFilter::filterComponent(QString component, int line0, int lineN)
     line0++;
     while (line0 < lineN) {
         readProperty(modLines[line0], prName, paNames, paValues, prValue);
-        if (prName.toLower() == "begin") { // skip subcomponents
+        if (prName.toUpper() == "BEGIN") { // skip subcomponents
             line0 = findComponentEnd(line0, prValue) + 1;
         } else if (!prName.isEmpty()) {
             // check if the property matches the component filter
@@ -574,7 +596,7 @@ int icsFilter::filterComponent(QString component, int line0, int lineN)
 
 QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString filters)
 {
-    // label tells which ics-filter to use.
+    // label tells which filter to use. Exits if label is empty.
     // filters should be a json-string. If it is empty, tries to read
     // ======>  ~/.config/icsFilter/filters.json  <=======
     // Copies origIcsData to origLines[] and modLines[], of which
@@ -591,7 +613,8 @@ QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString f
     if (label.isEmpty()) {
         qWarning() << "Calendar label unspecified.";
         return origIcsData;
-    } else if (!readFilters(filters)) {
+    }
+    if (!readFilters(filters)) {
         qWarning() << "Reading filters unsuccessful. Ics-file not filtered." << filters.toUtf8();
         return origIcsData;
     }
@@ -603,9 +626,6 @@ QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString f
     if (origLines.length() < 2) {
         origLines = icsFile.split("\n");
         qWarning() << "No proper end of lines. Number of inproper ones " << origLines.length();
-        if (origLines.length() < 2) {
-            qDebug() << origIcsData;
-        }
     }
     modLines = origLines;
 
@@ -619,8 +639,9 @@ QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString f
         emptyEnds++;
     }
 
-    // filter each calendar in the file
+    // check each calendar in the file
     qDebug() << "Rows in the ics file" << modLines.length() << ".";
+    qDebug() << modLines;
     iLine = 0;
     while (iLine >= 0 && iLine < modLines.length() - emptyEnds) {
         iLine = filterCalendar(iLine) + 1;
@@ -690,24 +711,26 @@ icsFilter::filteringCriteria icsFilter::filterType(QJsonValue jVal,
 }
 
 // searches for 'BEGIN:' or 'END:' +component starting from lineNr, and
-// returns the begin-line number
+// returns the line number of the first matching line
 // if component is empty, searches for any vcomponent
+// if component is not found, returns the numbers of lines in modLines
 int icsFilter::findComponent(int lineNr,
                              QString &component, bool componentEnd)
 {
     // searches for 'end:' if componentEnd == true
-    bool search = true;
+    bool search = true, undefinedComponent = false;
     QRegExp expression;
 
     if (component.isEmpty()) {
-        component = "(v[a-z]+)";
+        component = "(V[A-Z]+)";
+        undefinedComponent = true;
     }
     expression.setCaseSensitivity(Qt::CaseInsensitive);
     expression.setMinimal(false);
     if (componentEnd) {
-        expression.setPattern("^end\\s*:\\s*" + component);
+        expression.setPattern("^END\\s*:\\s*" + component);
     } else {
-        expression.setPattern("^begin\\s*:\\s*" + component);
+        expression.setPattern("^BEGIN\\s*:\\s*" + component);
     }
 
     while (search && lineNr < modLines.length()) {
@@ -718,7 +741,7 @@ int icsFilter::findComponent(int lineNr,
         }
     }
 
-    if (component == "(v[a-z]+)" && expression.captureCount() > 0) {
+    if (undefinedComponent && expression.captureCount() > 0) {
         component = expression.cap(expression.captureCount());
     }
 
@@ -733,8 +756,8 @@ int icsFilter::findComponentEnd(int lineNr, QString component)
 bool icsFilter::isAlarmAllowed(QString component)
 {
     bool result = false;
-    if (component.toLower() == vevent ||
-            component.toLower() == vtodo) {
+    if (component.toUpper() == vevent ||
+            component.toUpper() == vtodo) {
         result = true;
     }
     return result;
@@ -1141,7 +1164,7 @@ QDateTime icsFilter::propertyTime(QString prop, QString timeStr,
     //DTSTART;VALUE=DATE:19970714 // day
     //DTSTART:19970714T133000 // Local time
     //DTSTART:19970714T173000Z // UTC time
-    //DTSTART;TZID=America/New_York:19970714T133000 // Local time and time zone reference
+    //;TZID=America/New_York:19970714T133000 // Local time and time zone reference
     QDateTime result;
     QTimeZone zone;
     QRegExp dtValue("(-?\\d+)[Tt](\\d\\d)(\\d\\d)(\\d\\d)"), dValue("(\\d+)");
@@ -1155,7 +1178,7 @@ QDateTime icsFilter::propertyTime(QString prop, QString timeStr,
     } else {
         i = 0;
         while (i < parameters.length()) {
-            if (parameters.at(i).toLower() == "tzid") {
+            if (parameters.at(i).toUpper() == "TZID") {
                 zoneName = parValues.at(i);
                 i = parameters.length();
                 if (zone.isTimeZoneIdAvailable(zoneName.toUtf8())) {

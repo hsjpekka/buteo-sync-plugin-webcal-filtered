@@ -18,7 +18,7 @@ private:
     QJsonObject filters, cFilter, newFilter;
     QString calendarName, filtersFileName, filtersPath;
     QStringList modLines, origLines;
-    int alarmAdvance, alarmTime;
+    int alarmAdvance, alarmTime, lineCalBegin, lineCalEnd;
     const QString keyCalendars = "calendars", keyRemoteName = "X-WR-CALNAME",
         keyName = "label", keyIdProperty = "idProperty",
         keyIdVal = "idValue", keyReminder = "reminder",
@@ -29,9 +29,10 @@ private:
     const QString keyProperty = "property", keyPropType = "type",
         keyValueMatches = "valueMatches", keyValues = "values";
     const QString keyValue = "value", keyCriteria = "criteria";
-    const QString vevent = "vevent", vtodo = "vtodo", vjournal = "vjournal",
-        vfreebusy = "vfreebusy", vtimezone = "vtimezone", valarm = "valarm";
-    const QString dtstart = "dtstart", valueAccept = "accept", valueReject = "reject";
+    const QString vcalendar = "VCALENDAR", vevent = "VEVENT", vtodo = "VTODO",
+        vjournal = "VJOURNAL", vfreebusy = "VFREEBUSY", vtimezone = "VTIMEZONE",
+        valarm = "VALARM";
+    const QString dtstart = "DTSTART", valueAccept = "accept", valueReject = "reject";
     enum filteringCriteria {NotDefined, Equal, NotEqual, EqualOrLarger, EqualOrSmaller, Larger, Smaller, SubString, NotSubString};
     enum propertyType {Date, Day, Number, String, Time};
     const int matchFail = -1, matchSuccess = 1;
