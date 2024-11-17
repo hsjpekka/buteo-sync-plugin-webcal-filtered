@@ -9,11 +9,13 @@ INCLUDEPATH += $$PWD
 
 SOURCES += \
         $$PWD/webcalclient.cpp \
-        $$PWD/icsfilter.cpp
+        $$PWD/icsfilter.cpp \
+        $$PWD/fileoperations.cpp
 
 HEADERS += \
         $$PWD/webcalclient.h \
-        $$PWD/icsfilter.h
+        $$PWD/icsfilter.h \
+        $$PWD/fileoperations.h
 
 OTHER_FILES += \
         $$PWD/xmls/webcal.xml \

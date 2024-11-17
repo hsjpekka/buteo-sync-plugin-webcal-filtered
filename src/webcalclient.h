@@ -68,6 +68,7 @@ private:
     void succeed(const QString &label, unsigned int added, unsigned int deleted);
     void failed(Buteo::SyncResults::MinorCode code, const QString &message);
     void processData(const QByteArray &icsData, const QByteArray &etag);
+    QByteArray filterComponents(QString calendarLabel, QByteArray icsData);
 
     const Buteo::Profile        *mClient;
     QString                      mNotebookUid;

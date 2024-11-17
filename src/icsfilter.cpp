@@ -3,8 +3,8 @@
 #include <QDebug>
 #include <QJsonDocument>
 #include <QJsonArray>
-#include <QFile>
-#include <QDir>
+//#include <QFile>
+//#include <QDir>
 #include <QDate>
 #include <QDateTime>
 #include <QTimeZone>
@@ -66,13 +66,12 @@
 
 icsFilter::icsFilter(QObject *parent) : QObject(parent)
 {
-    QFile file;
-    filtersPath = QDir().homePath() + "/.config/webcal-client/";
-    filtersFileName = "iCalendarFilters.json";
-    file.setFileName(filtersPath+filtersFileName);
-    if (!file.exists()) {
-        filtersPath = QDir().homePath() + "/.config/com.jolla/calendar/";
-    }
+    //QFile file;
+    //int position;
+    //position = settings.fileName().lastIndexOf("/");
+    //filtersPath = settings.fileName().left(position);
+    //filtersFileName = "iCalendarFilters.json";
+    //file.setFileName(filtersPath+filtersFileName);
 }
 
 int icsFilter::addAlarm(int line0, int lineN, int reminderMins,
@@ -596,9 +595,8 @@ int icsFilter::filterComponent(QString component, int line0, int lineN)
 
 QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString filters)
 {
-    // label tells which filter to use. Exits if label is empty.
-    // filters should be a json-string. If it is empty, tries to read
-    // ======>  ~/.config/icsFilter/filters.json  <=======
+    // label tells which filter to use. Exit if label is empty.
+    // filters is a json-string. If it is empty, exit.
     // Copies origIcsData to origLines[] and modLines[], of which
     // modLines[] will be filtered. Lines to be filtered out will
     // be replaced by an empty line "". Unfolding will replace
@@ -1127,11 +1125,11 @@ int icsFilter::listItemIndex(QJsonObject jObject, QString listName, QString key,
     return result;
 }
 
-QString icsFilter::overWriteFiltersFile(QString jsonText)
-{
-    QFile fFile;
-    QTextStream fData;
-    QDir fDir;
+//QString icsFilter::overWriteFiltersFile(QString jsonText)
+//{
+//    QFile fFile;
+//    QTextStream fData;
+//    QDir fDir;
     //QJsonDocument jsonFile;
     //QString fileContentssss;
     //jsonFile = QJsonDocument::fromJson(jsonText.toUtf8());
@@ -1140,19 +1138,15 @@ QString icsFilter::overWriteFiltersFile(QString jsonText)
     //}
     //fileContents = jsonFile.toJson(QJsonDocument::Indented);
 
-    if (!fDir.mkpath(filtersPath)) {
-        qWarning() << "Can't create path" << filtersPath;
-    }
-
-    fFile.setFileName(filtersPath + filtersFileName);
-    if (fFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        fData.setDevice(&fFile);
-        fData << jsonText;
-        fFile.close();
-    }
-
-    return fFile.errorString();
-}
+//    fFile.setFileName(filtersPath + filtersFileName);
+//    if (fFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+//        fData.setDevice(&fFile);
+//        fData << jsonText;
+//        fFile.close();
+//    }
+//
+//    return fFile.errorString();
+//}
 
 // time in icalendar-file
 QDateTime icsFilter::propertyTime(QString prop, QString timeStr,
@@ -1235,13 +1229,13 @@ QDateTime icsFilter::propertyTime(QString prop, QString timeStr,
 
 bool icsFilter::readFilters(QString filtersFileContents)
 {
-    // reads filters from fileName if fileContents.isEmpty()
+    // returns if fileContents.isEmpty()
     QJsonDocument json;
     QJsonParseError jsonError;
     const int filtersFileMinLength = 16; // {"calendars":[]}
 
     if (filtersFileContents.length() < filtersFileMinLength) {
-        filtersFileContents = readFiltersFile();
+        return false;
     }
     if (filtersFileContents.length() < filtersFileMinLength) {
         return false;
@@ -1257,29 +1251,6 @@ bool icsFilter::readFilters(QString filtersFileContents)
     }
 
     return json.isObject();
-}
-
-QString icsFilter::readFiltersFile(QString fileName, QString path)
-{
-    QFile fFile;
-    QTextStream fData;
-    QString result;
-
-    if (fileName.length() > 0) {
-        setFiltersFile(fileName, path);
-    }
-
-    fFile.setFileName(filtersPath + filtersFileName);
-    if (fFile.exists() && fFile.open(QIODevice::ReadOnly | QIODevice::Text)){
-        //fFile.open(QIODevice::ReadOnly | QIODevice::Text);
-        fData.setDevice(&fFile);
-        result = fData.readAll();
-        fFile.close();
-    } else {
-        qWarning() << "Filters file not found:" << filtersPath << filtersFileName;
-    }
-
-    return result;
 }
 
 // reads the property name, value and parameters
@@ -1424,6 +1395,7 @@ int icsFilter::skipComponent(int &lineNr)
     return result;
 }
 
+/*
 QString icsFilter::setFiltersFile(QString fileName, QString path)
 {
     QString result;
@@ -1437,11 +1409,11 @@ QString icsFilter::setFiltersFile(QString fileName, QString path)
         filtersFileName = fileName;
     }
     result.append(filtersPath);
-    result.append("/");
     result.append(filtersFileName);
 
     return result;
 }
+// */
 
 // unfolds the lines, replaces the folds by space " "
 // returns the total number of unfolds

@@ -31,6 +31,7 @@
 #include <KCalendarCore/ICalFormat>
 
 #include "icsfilter.h"
+#include "fileoperations.h"
 
 Q_LOGGING_CATEGORY(lcWebCal, "buteo.plugin.webcal", QtWarningMsg)
 
@@ -202,6 +203,28 @@ void WebCalClient::dataReceived()
     emit syncProgressDetail(iProfile.name(), Sync::SYNC_PROGRESS_RECEIVING_ITEMS);
 }
 
+QByteArray WebCalClient::filterComponents(QString calendarLabel, QByteArray icsData)
+{
+    QByteArray result;
+    icsFilter icsFilter;
+    QString filters;
+    QString fileName;
+    fileOperations file;
+    int position;
+
+    fileName = file.getConfigPath();
+    //if (fileName.isEmpty()) {
+    //    fileName = "/home/defaultuser/.config/";
+    //}
+    position = fileName.indexOf("config");
+    fileName = fileName.left(position + 6);
+    fileName.append("/web-client/iCalendarFilters.json");
+
+    result = icsFilter.filterIcs(calendarLabel, icsData, filters);
+    return result;
+}
+
+
 void WebCalClient::processData(const QByteArray &icsDataOrig, const QByteArray &etag)
 {
     mKCal::Notebook::Ptr notebook = mStorage->notebook(mNotebookUid);
@@ -238,9 +261,8 @@ void WebCalClient::processData(const QByteArray &icsDataOrig, const QByteArray &
         mCalendar->addNotebook(mNotebookUid, true);
         mCalendar->setDefaultNotebook(mNotebookUid);
         KCalendarCore::ICalFormat iCalFormat;
-        icsFilter icsFilter;
         QByteArray icsData;
-        icsData = icsFilter.filterIcs(mClient->key("label"), icsDataOrig);
+        icsData = filterComponents(mClient->key("label"), icsDataOrig);
         qCDebug(lcWebCal) << icsData;
         if (!icsData.isEmpty() && !iCalFormat.fromRawString(mCalendar, icsData)) {
             failed(Buteo::SyncResults::DATABASE_FAILURE,

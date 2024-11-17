@@ -10,13 +10,13 @@ class icsFilter : public QObject
 public:
     explicit icsFilter(QObject *parent = nullptr);
     Q_INVOKABLE QByteArray filterIcs(QString label, QByteArray origIcsData, QString filters = "");
-    Q_INVOKABLE QString overWriteFiltersFile(QString jsonText);
-    Q_INVOKABLE QString readFiltersFile(QString fileName = "", QString path = "");
-    Q_INVOKABLE QString setFiltersFile(QString fileName = "", QString path = "");
+    //Q_INVOKABLE QString overWriteFiltersFile(QString jsonText);
+    //Q_INVOKABLE QString readFiltersFile(QString fileName = "", QString path = "");
+    //Q_INVOKABLE QString setFiltersFile(QString fileName = "", QString path = "");
 
 private:
     QJsonObject filters, cFilter, newFilter;
-    QString calendarName, filtersFileName, filtersPath;
+    QString calendarName;//, filtersFileName, filtersPath;
     QStringList modLines, origLines;
     int alarmAdvance, alarmTime, lineCalBegin, lineCalEnd;
     const QString keyCalendars = "calendars", keyRemoteName = "X-WR-CALNAME",
