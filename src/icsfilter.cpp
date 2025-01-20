@@ -17,7 +17,7 @@
  *     "url": "https://haagankarhut.nimenhuuto.com/calendar/ical",
  * 	   "reminder": "120", // how many minutes before the start time - if not defined, a reminder is not set; overwrites the values in the ics-file
  *     "dayreminder": "18:00", // for full day events - if not defined, a reminder is not set for full day events; overwrites the values in the ics-file
- * 	   "bothReminders": "yes", // if both reminders are set, are both added for normal events - defaults to yes
+ * 	   "bothReminders": "no", // no, yes: if both reminders are set, are both added for normal events - defaults to no
  *     // if no filter is defined, the component is not filtered out
  *     "filters": [ // only one item per component type - uses only one if multiple found
  *     	{ "component": "vevent",
@@ -97,12 +97,13 @@ int icsFilter::addAlarm(int line0, int lineN, int reminderMins,
         }
         i++;
     }
+
     // alarms can only be included into velement and vtodo
     if (isAlarmAllowed(component)) {
-        if (dateTime.isValid()) {
+        if (time.isValid()) {
             result += addAlarmRelative(reminderMins, lineN);
         }
-        if (!dateTime.isValid() || bothReminders) {
+        if (!time.isValid() || bothReminders) {
             result += addAlarmAbsolute(reminderTime, onPreviousDay, date, lineN);
         }
     } else {
@@ -251,6 +252,7 @@ QJsonObject icsFilter::calendarFilterFind(QString filterKey,
         jsonArr = jsonVal.toArray();
         i = 0;
         iN = jsonArr.count();
+
         while (i < iN) {
             jsonVal = jsonArr.at(i);
             if (calendarFilterCheck(jsonVal, filterKey, properties,
@@ -389,11 +391,6 @@ int icsFilter::filterCalendar(int lineNr)
     if (lineCalEnd >= modLines.length()) {
         lineCalEnd = modLines.length() - 1;
     }
-    //while (lineNr < modLines.length() &&
-    //       beginCal.indexIn(modLines[lineNr]) < 0) {
-    //    lineNr++;
-    //}
-    //lineNr++;
     lineNr = lineCalBegin + 1;
     if (lineNr >= lineCalEnd) {
         qWarning() << beginCal.pattern() << "not found";
@@ -405,19 +402,15 @@ int icsFilter::filterCalendar(int lineNr)
     // read the calendar properties
     // calendarName = mClient->key("label") || property("X-WR-CALNAME")
     while (lineNr < lineCalEnd) {
-        //if (endCal.indexIn(modLines[lineNr]) >= 0) {
-        //    notEndOfCal = false;
-        //} else {
-            // read calendar properties, skip calendar components
-            if (skipComponent(lineNr) == 0) {
-                readProperty(modLines[lineNr], prop, params, parVals, val);
-                properties.append(prop);
-                values.append(val);
-                propParams.append(params);
-                propParVals.append(parVals);
-            }
-            lineNr++;
-        //}
+        // read calendar properties, skip calendar components
+        if (skipComponent(lineNr) == 0) {
+            readProperty(modLines[lineNr], prop, params, parVals, val);
+            properties.append(prop);
+            values.append(val);
+            propParams.append(params);
+            propParVals.append(parVals);
+        }
+        lineNr++;
     }
 
     // read the filter for the calendar
@@ -425,6 +418,7 @@ int icsFilter::filterCalendar(int lineNr)
     isFilterSet = !cFilter.isEmpty();
 
     // read alarms
+    //qDebug() << "read user defined alarms, filters" << isFilterSet;
     reminderMins = 0;
     if (isFilterSet) {
         jval = cFilter.value(keyReminder);
@@ -448,6 +442,7 @@ int icsFilter::filterCalendar(int lineNr)
             qInfo() << "No reminder set for normal events.";
         }
         jval = cFilter.value(keyReminderDay);
+
         if (!jval.isUndefined()) {
             if (jval.isString()) {
                 QString strTime = jval.toString();
@@ -467,11 +462,10 @@ int icsFilter::filterCalendar(int lineNr)
         } else {
             qInfo() << "No reminder set for full day events.";
         }
+        bothReminders = false;
         jval = cFilter.value(keyBothReminders);
-        if (!jval.isUndefined()) {
-            if (jval.isString() && jval.toString().toLower() == "no") {
-                bothReminders = false;
-            }
+        if (jval.isString() && jval.toString().toLower() == "yes") {
+            bothReminders = true;
         }
     }
 
@@ -480,6 +474,7 @@ int icsFilter::filterCalendar(int lineNr)
     while (lineNr < lineCalEnd) {
         component.clear();
         lineNr = findComponent(lineNr, component);
+        qDebug() << "start" << component;
         if (lineNr >= lineCalEnd) {
             if (nComponents < 1) {
                 qDebug() << "No components found.";
@@ -504,6 +499,7 @@ int icsFilter::filterCalendar(int lineNr)
             } else if (endCmp.indexIn(modLines[lineNr2]) < 0) {
                 qDebug() << "Row" << lineNr2 << "is NOT" << endCmp.pattern();
             }
+
             if (filterComponent(component, lineNr, lineNr2) < 0) { // filter rows out if < 0
                 i = lineNr;
                 while (i <= lineNr2 || modLines[i] == " ") { // modLines[i] == " " ???
@@ -627,6 +623,7 @@ QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString f
     }
     modLines = origLines;
 
+    qDebug() << "unfoldLines()";
     unfoldLines();
 
     // prevent some false error messages
@@ -638,8 +635,7 @@ QByteArray icsFilter::filterIcs(QString label, QByteArray origIcsData, QString f
     }
 
     // check each calendar in the file
-    qDebug() << "Rows in the ics file" << modLines.length() << ".";
-    qDebug() << modLines;
+    qDebug() << "Rows in the ics file: " << modLines.length() << ".";
     iLine = 0;
     while (iLine >= 0 && iLine < modLines.length() - emptyEnds) {
         iLine = filterCalendar(iLine) + 1;
@@ -1202,6 +1198,7 @@ QDateTime icsFilter::propertyTime(QString prop, QString timeStr,
         i = dValue.indexIn(timeStr);
         if (i >= 0) {
             tmp = dValue.cap(1);
+            time.setHMS(-1,-1,-1);
         }
     }
     if (tmp.length() >= 5) {
@@ -1377,11 +1374,11 @@ int icsFilter::skipComponent(int &lineNr)
     line = modLines[lineNr];
     if (beginCmp.indexIn(line) >= 0) {
         lineNr++;
-        component = line.right(line.length() - beginCmp.pattern().length() + 1); // '^'
+        component = line.right(line.length() - beginCmp.pattern().length() + 1).toLower(); // '^'
         endCmp.setPattern("^end:" + component);
         while (lineNr < iN && endCmp.indexIn(modLines[lineNr]) < 0) {
             if (beginCmp.indexIn(modLines[lineNr]) >= 0) {
-                lineNr = skipComponent(lineNr);
+                skipComponent(lineNr);
             }
             lineNr++;
         }
@@ -1444,7 +1441,7 @@ int icsFilter::unfoldLine(int &lineNr)
     tmp = modLines.at(i);
     while (i < modLines.length() - 2 && cont) {
         nextLine = modLines.at(i + 1);
-        if (nextLine.at(0) == ' ' || nextLine.at(0) == '\t')  {
+        if (!nextLine.isEmpty() && (nextLine.at(0) == ' ' || nextLine.at(0) == '\t'))  {
             tmp.append(nextLine.right(nextLine.length() - 1));
             modLines.replace(lineNr, tmp);
             modLines.replace(i+1, " ");

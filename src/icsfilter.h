@@ -40,7 +40,7 @@ private:
     int addAlarm(int lineNr, int lineN, int reminderMins, QTime reminderTime, bool onPreviousDay);
     int addAlarmRelative(int min, int lineNr);
     int addAlarmAbsolute(QTime time, bool onPreviousDay, QDate date, int lineNr);
-    bool bothReminders = true;
+    bool bothReminders;
     bool calendarFilterCheck(QJsonValue filterN, QString filterKey, QStringList properties, QStringList values);
     QJsonObject calendarFilterFind(QString filterKey, QStringList properties, QStringList values);
     QJsonObject calendarFilterGet(QStringList properties, QStringList values);
