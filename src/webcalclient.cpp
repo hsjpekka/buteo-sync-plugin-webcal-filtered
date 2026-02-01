@@ -209,16 +209,21 @@ QByteArray WebCalClient::filterComponents(QString calendarLabel, QByteArray icsD
     icsFilter icsFilter;
     QString filters;
     QString fileName;
+    QString filePath;
     fileOperations file;
     int position;
 
-    fileName = file.getConfigPath();
-    //if (fileName.isEmpty()) {
-    //    fileName = "/home/defaultuser/.config/";
-    //}
-    position = fileName.indexOf("config");
-    fileName = fileName.left(position + 6);
-    fileName.append("/web-client/iCalendarFilters.json");
+    filePath = file.getConfigPath(); //    fileName = "/home/defaultuser/.config/<Unknown organization>/<program>";
+    qDebug() << filePath;
+    position = filePath.indexOf("config");
+    filePath = filePath.left(position + 6);
+    filePath.append("/null.hsjpekka/harbour-icalendar-filters/");
+    fileName = "iCalendarFilters.json";
+
+    file.setFileName(fileName, filePath);
+
+    qDebug() << "Start filtering" << calendarLabel << "lines" << icsData.length() << "using filters:" << filePath << fileName;
+    filters = file.readTxt();
 
     result = icsFilter.filterIcs(calendarLabel, icsData, filters);
     return result;

@@ -35,7 +35,7 @@ private:
     const QString dtstart = "DTSTART", valueAccept = "accept", valueReject = "reject";
     enum filteringCriteria {NotDefined, Equal, NotEqual, EqualOrLarger, EqualOrSmaller, Larger, Smaller, SubString, NotSubString};
     enum propertyType {Date, Day, Number, String, Time};
-    const int matchFail = -1, matchSuccess = 1;
+    const int matchFail = -1, matchSuccess = 1, noCriteria = 0;
 
     int addAlarm(int lineNr, int lineN, int reminderMins, QTime reminderTime, bool onPreviousDay);
     int addAlarmRelative(int min, int lineNr);

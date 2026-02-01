@@ -2,6 +2,7 @@
 #include <QDebug>
 #include <QFile>
 #include <QTextStream>
+//#include <QLoggingCategory>
 
 fileOperations::fileOperations(QObject *parent) : QObject(parent)
 {
@@ -41,37 +42,12 @@ QString fileOperations::getConfigPath()
     // qDebug() << path;
     if (!dir.exists(path)) {
         if (!dir.mkpath(path)) {
-            qWarning() << "Can't create path" << result;
+            qWarning() << "Config-path doesn't exist and can't create it." << result;
         }
     }
     result = path;
     return result;
 }
-
-/*
-QString fileOperations::readFiltersFile(QString fileName, QString path)
-{
-    QFile fFile;
-    QTextStream fData;
-    QString result;
-
-    if (fileName.length() > 0) {
-        setFiltersFile(fileName, path);
-    }
-
-    fFile.setFileName(configPath + filtersFileName);
-    if (fFile.exists() && fFile.open(QIODevice::ReadOnly | QIODevice::Text)){
-        //fFile.open(QIODevice::ReadOnly | QIODevice::Text);
-        fData.setDevice(&fFile);
-        result = fData.readAll();
-        fFile.close();
-    } else {
-        qWarning() << "Filters file not found:" << filtersPath << filtersFileName;
-    }
-
-    return result;
-}
-// */
 
 QString fileOperations::readTxt(QString name, QString path)
 {
