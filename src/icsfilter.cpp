@@ -15,7 +15,7 @@
  * filter definitions are a JSON-file:
  * { "calendars": [
  *   { "label": "Haagan Karhut - https://haagankarhut.nimenhuuto.com/", // filter the ics-file, if mkcal->label = label
- *     "url": "https://haagankarhut.nimenhuuto.com/calendar/ical",
+ *     "url": "https://haagankarhut.nimenhuuto.com/calendar/ical", // for testing
  * 	   "reminder": "120", // how many minutes before the start time - if not defined, a reminder is not set; overwrites the values in the ics-file
  *     "dayreminder": "18:00", // for full day events - if not defined, a reminder is not set for full day events; overwrites the values in the ics-file
  * 	   "bothReminders": "no", // no, yes: if both reminders are set, are both added for normal events - defaults to no
@@ -434,11 +434,13 @@ int icsFilter::filterCalendar(int lineNr)
         if (!jval.isUndefined()) {
             if (jval.isString()) {
                 QString strTime = jval.toString();
-                if (strTime.at(0) == '-') {
+
+                if (!strTime.isEmpty() && strTime.at(0) == '-') {
                     strTime = strTime.right(strTime.length()-1);
                     remindPreviousDay = false;
                 }
                 reminderTime = QTime::fromString(strTime, "h:mm");
+
                 if (!reminderTime.isValid()) {
                     qWarning() << "Converting dayreminder time failed:" << jval.toString();
                 } else {
