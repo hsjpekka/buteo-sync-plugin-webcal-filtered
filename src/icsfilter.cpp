@@ -381,6 +381,7 @@ int icsFilter::filterCalendar(int lineNr)
     if (lineCalEnd >= modLines.length()) {
         lineCalEnd = modLines.length() - 1;
     }
+    qDebug() << "calendar between lines" << lineCalBegin << "-" << lineCalEnd;
     lineNr = lineCalBegin + 1;
     if (lineNr >= lineCalEnd) {
         qWarning() << component << "not found";
@@ -462,6 +463,7 @@ int icsFilter::filterCalendar(int lineNr)
     // filter the events
     qDebug() << "start filtering the components";
     lineNr = line0;
+
     while (lineNr < lineCalEnd) {
         component.clear();
         lineNr = findComponent(lineNr, component);
@@ -482,7 +484,6 @@ int icsFilter::filterCalendar(int lineNr)
             endCmp.setPattern("^END:" + component);
             if (lineNr2 >= lineCalEnd) {
                 lineNr2 = lineCalEnd;
-                //notEndOfCal = false;
                 qDebug() << "End of component" << nComponents << "-" <<
                             component << "-" << "from line" << lineNr
                          << "not found";
@@ -500,6 +501,7 @@ int icsFilter::filterCalendar(int lineNr)
                 if (addReminder || reminderTime.isValid()) {
                     newRows = addAlarm(lineNr, lineNr2, reminderMins, reminderTime, remindPreviousDay);
                     lineNr2 += newRows;
+                    lineCalEnd += newRows;
                 }
             }
             lineNr = lineNr2; // "end:vevent"
@@ -524,8 +526,8 @@ int icsFilter::filterComponent(QString component, int line0, int lineN)
     QString prName, prValue;
     QJsonObject cmpFilter;
 
-    if (line0 < lineCalBegin || line0 >= lineCalEnd || lineN <= line0 || lineN >= lineCalEnd) {
-        qDebug() << "line number (" << line0 << "," << lineN << ") too large ( >" << modLines.length() << ")";
+    if (line0 < lineCalBegin || line0 >= lineCalEnd || lineN <= line0 || lineN > lineCalEnd) {
+        qDebug() << "line number (" << line0 << "<" << lineN << ") out of scope (" << lineCalBegin << "-" << lineCalEnd << ", total" << modLines.length() << ")";
         qInfo() << "component" << component << ", line" << line0 << "not checked";
         return 0;
     }
@@ -968,6 +970,7 @@ int icsFilter::isPropertyMatching(QJsonObject cmpFilter, QString property,
 
     // type of the property value - string, number, date or time
     jval = prFilter.value(keyPropType);
+    //qDebug() << prFilter.keys();
     valType = String;
     if (jval.isString()) {
         filterValue = jval.toString().toLower();
